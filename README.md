@@ -7,7 +7,7 @@ Singularity Engine is an open-source game/application engine written in C++
 The engine aims to use latest C++ and features, currently targeting C++20 with modules.
 
 This project can be used for learning and experimenting purposes,
-while things are kept clean, don't expect a super-serious .
+while things are kept clean, don't expect a super-serious environment.
 
 ## Current Status
 
