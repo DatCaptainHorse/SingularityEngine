@@ -1,9 +1,9 @@
+#include <filesystem>
+
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include <doctest/doctest.h>
 
 import SE;
-
-import <filesystem>;
 
 using namespace SE;
 using namespace Utilities;
