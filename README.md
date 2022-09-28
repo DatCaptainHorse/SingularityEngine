@@ -46,15 +46,6 @@ Try to keep your contributions light without extra dependencies unless absolutel
 
 If your required dependency isn't available through xmake, add it as a Git submodule in the `External/` directory.
 
-## Code of Conduct
-
-* Provide a friendly, safe and welcoming environment for others, no matter what.
-* There is no need to be rude, mean or hurtful.
-* Respect different opinions, try to see things from other's viewpoint.
-* No spamming, trolling, flaming, baiting or other attention-stealing behavior.
-* Failing to follow these guidelines repeatedly will result in you being excluded from interactions.
-* Being a contributor does not give you special rights to avoid following these guidelines.
-
 ## History
 
 Singularity Engine started many years back as a learning project for C++
