@@ -1,0 +1,38 @@
+name: Build
+
+on:
+  push:
+    paths-ignore: [ "**.md" ]
+    branches: [ "master", "release/**" ]
+  pull_request:
+    paths-ignore: [ "**.md" ]
+    branches: [ "master", "release/**" ]
+
+jobs:
+  windows_build:
+    name: "Build - Windows"
+    runs-on: windows-latest
+    
+    env:
+      CMAKE_GENERATOR: "Visual Studio 17 2022"
+
+    steps:
+    - name: "Checkout"
+      uses: actions/checkout@v3
+      
+    - name: "Setup MSBuild"
+      uses: microsoft/setup-msbuild@v1.1
+      
+    - name: "Setup xmake"    
+      uses: xmake-io/github-action-setup-xmake@v1.0.12
+      with:
+        xmake-version: latest
+
+    - name: "Configure xmake"
+      run: "xmake f"
+      
+    - name: "Build using xmake"
+      run: "xmake"
+
+    - name: "Run Tests"
+      run: "xmake run Tests"
