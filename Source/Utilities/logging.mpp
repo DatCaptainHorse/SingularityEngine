@@ -1,0 +1,187 @@
+﻿export module Utilities.Logging;
+
+import <format>;
+import <string>;
+import <sstream>;
+import <fstream>;
+import <iostream>;
+import <source_location>;
+
+export namespace SE::Utilities {
+
+	/// RAII Logging class
+	/// Uses std::format for formatting of log messages
+	class Logger {
+	private:
+		enum class LogType {
+			eNone,
+			eInfo,
+			ePerformance,
+			eWarning,
+			eError,
+			eFatal,
+		};
+
+	private:
+		inline static bool m_Init = false;
+		inline static std::ofstream m_OutStream = {};
+
+	public:
+		/// Initializes the logger
+		/// @param outputFile file to output log to
+		static void Init(const std::string &outputFile = "log.txt") {
+			m_OutStream = std::ofstream(outputFile);
+			m_Init = true;
+		}
+
+		/// Cleans up the logger and closes file stream
+		static void Clean() {
+			if (!m_Init)
+				return;
+
+			m_OutStream.close();
+			m_Init = false;
+		}
+
+		/// Returns whether the logger is initialized
+		static bool isInitialized() { return m_Init; }
+
+		/// For general logging purposes.
+		/// @param logMessage message to log
+		/// @param args arguments to log
+		template<typename... Args>
+		static void Log(const std::string_view logMessage, const Args &...args,
+						const std::source_location &loc = std::source_location::current()) {
+			i_log(logMessage, LogType::eNone, std::make_format_args(args...), loc);
+		}
+
+		/// For something that is particularly informative.
+		/// @param logMessage message to log
+		/// @param args arguments to log
+		template<typename... Args>
+		static void Info(const std::string_view logMessage, const Args &...args,
+						 const std::source_location &loc = std::source_location::current()) {
+			i_log(logMessage, LogType::eInfo, std::make_format_args(args...), loc);
+		}
+
+		/// For logging something that might affect performance.
+		/// @param logMessage message to log
+		/// @param args arguments to log
+		template<typename... Args>
+		static void Performance(const std::string_view logMessage, const Args &...args,
+								const std::source_location &loc = std::source_location::current()) {
+			i_log(logMessage, LogType::ePerformance, std::make_format_args(args...), loc);
+		}
+
+		/// For things that shouldn't happen but execution can continue normally.
+		/// @param logMessage message to log
+		/// @param args arguments to log
+		template<typename... Args>
+		static void Warning(const std::string_view logMessage, const Args &...args,
+							const std::source_location &loc = std::source_location::current()) {
+			i_log(logMessage, LogType::eWarning, std::make_format_args(args...), loc);
+		}
+
+		/// For things that really shouldn't have happened and causes further issues.
+		/// @param logMessage message to log
+		/// @param args arguments to log
+		template<typename... Args>
+		static void Error(const std::string_view logMessage, const Args &...args,
+						  const std::source_location &loc = std::source_location::current()) {
+			i_log(logMessage, LogType::eError, std::make_format_args(args...), loc);
+		}
+
+		/// When something went wrong so badly that the program has to quit immediately.
+		/// @param logMessage message to log
+		/// @param args arguments to log
+		template<typename... Args>
+		static void Fatal(const std::string_view logMessage, const Args &...args,
+						  const std::source_location &loc = std::source_location::current()) {
+			i_log(logMessage, LogType::eFatal, std::make_format_args(args...), loc);
+		}
+
+		/// Logs a newline
+		/// @param count amount of newlines to add
+		static void EndLine(const uint32_t count = 1) {
+			if (!m_Init)
+				return;
+
+			for (uint32_t i = 0; i < count; ++i) {
+				std::cout << std::endl;
+				m_OutStream << std::endl;
+			}
+		}
+
+	private:
+		static std::string i_getLogTypeString(LogType logType) {
+			std::string result;
+			if (logType == LogType::eInfo)
+				result = "[INFO]";
+			else if (logType == LogType::ePerformance)
+				result = "[PERF]";
+			else if (logType == LogType::eWarning)
+				result = "[WARN]";
+			else if (logType == LogType::eError)
+				result = "[ERROR]";
+			else if (logType == LogType::eFatal)
+				result = "[FATAL]";
+			return result;
+		}
+
+		static void i_log(std::string_view message, LogType logType,
+						  std::basic_format_args<std::format_context> fmtargs,
+						  const std::source_location &location) {
+			if (!m_Init)
+				return;
+
+			// Skip newline if line carriage exists
+			bool skipNewline = false;
+			if (!message.empty() && message.find('\r') != std::string::npos)
+				skipNewline = true;
+
+			// Replace tabs with |||| instead
+			bool tabFill = false;
+			if (!message.empty() && message.front() == '\t')
+				tabFill = true;
+
+			auto fmtd = std::vformat(message, fmtargs);
+			if (tabFill) fmtd.erase(0, 1);
+
+			const auto logTypeString = i_getLogTypeString(logType);
+
+			if (logType == LogType::eFatal)
+				std::cout << "\033[30;41m" << logTypeString << "\033[0m";
+			else if (logType == LogType::eError)
+				std::cout << "\033[31m" << logTypeString << "\033[0m";
+			else if (logType == LogType::eWarning)
+				std::cout << "\033[33m" << logTypeString << "\033[0m";
+			else if (logType == LogType::ePerformance)
+				std::cout << "\033[33m" << logTypeString << "\033[0m";
+			else if (logType == LogType::eInfo)
+				std::cout << "\033[34m" << logTypeString << "\033[0m";
+
+			if (tabFill) {
+				if (logType == LogType::eNone) {
+					m_OutStream << logTypeString << "|||| " << fmtd;
+					std::cout << "|||| " << fmtd;
+				} else {
+					m_OutStream << logTypeString << " |||| " << fmtd;
+					std::cout << " |||| " << fmtd;
+				}
+			} else {
+				if (logType == LogType::eNone) {
+					m_OutStream << logTypeString << fmtd;
+					std::cout << fmtd;
+				} else {
+					m_OutStream << logTypeString << " " << fmtd;
+					std::cout << " " << fmtd;
+				}
+			}
+
+			if (!skipNewline) {
+				m_OutStream << std::endl;
+				std::cout << std::endl;
+			}
+		}
+	};
+}
