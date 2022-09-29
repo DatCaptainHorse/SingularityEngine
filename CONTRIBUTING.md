@@ -17,6 +17,8 @@ Code style is subject to changes initially, as long as you use the ClangFormat y
 
 Generally use tabs for indentation, avoid trailing whitespaces and keep to column limit.
 
+Line endings should always be LF (Unix and MacOS).
+
 ### Commit Style
 
 Commit title should be short, solid and in present tense, while prefixing the engine module in the title.

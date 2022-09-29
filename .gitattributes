@@ -1,0 +1,7 @@
+* text=auto
+
+# Tell Git to always use LF line endings
+*.hpp text eol=lf
+*.cpp text eol=lf
+*.mpp text eol=lf
+*.lua text eol=lf
