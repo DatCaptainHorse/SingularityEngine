@@ -6,5 +6,4 @@ set_warnings("all", "error")
 
 add_requires("doctest 2.4.*")
 
-includes("Source")
-includes("Tests")
+includes("Source", "Tests")
