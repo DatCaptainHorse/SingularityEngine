@@ -145,30 +145,30 @@ TEST_CASE("Thread - sequential finish" *
 
 	SUBCASE("Create multiple ending jobs") {
 		int counter = 0;
-		auto threadjob1 = [&counter](std::atomic_bool &) {
+		auto firstjob = [&counter](std::atomic_bool &) {
 			counter++;
 		};
-		auto threadjob2 = [&counter](std::atomic_bool &) {
+		auto secondjob = [&counter](std::atomic_bool &) {
 			counter++;
 		};
-		auto threadjob3 = [&counter](std::atomic_bool &) {
+		auto thirdjob = [&counter](std::atomic_bool &) {
 			counter--;
 		};
-		auto threadjob4 = [&counter](std::atomic_bool &) {
+		auto fourthjob = [&counter](std::atomic_bool &) {
 			counter--;
 		};
 
 		SUBCASE("Test jobs") {
 			std::atomic_bool atomicBool = false;
-			threadjob1(atomicBool);
-			threadjob2(atomicBool);
-			threadjob3(atomicBool);
-			threadjob4(atomicBool);
+			firstjob(atomicBool);
+			secondjob(atomicBool);
+			thirdjob(atomicBool);
+			fourthjob(atomicBool);
 			REQUIRE(counter == 0);
 		}
 
 		SUBCASE("Queue multiple jobs") {
-			thr.queue(threadjob1, threadjob2, threadjob3, threadjob4);
+			thr.queue(firstjob, secondjob, thirdjob, fourthjob);
 
 			CHECK(counter == 0);
 			CHECK(thr.count() == 4);
