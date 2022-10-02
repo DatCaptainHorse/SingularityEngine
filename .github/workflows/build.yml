@@ -29,7 +29,7 @@ jobs:
         xmake-version: latest
 
     - name: "Configure xmake"
-      run: "xmake f -y"
+      run: "xmake f -m releasedbg -y"
       
     - name: "Build using xmake"
       run: "xmake"
