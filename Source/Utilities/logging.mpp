@@ -1,18 +1,18 @@
 ﻿module;
 
 #include <format>
-#include <string>
-#include <sstream>
 #include <fstream>
 #include <iostream>
+#include <sstream>
+#include <string>
 
 export module Utilities.Logging;
 
-export namespace SE::Utilities {
+namespace SE {
 
 	/// RAII Logging class
 	/// Uses std::format for formatting of log messages
-	class Logger {
+	export class Logger {
 	private:
 		enum class LogType {
 			eNone,
@@ -23,7 +23,6 @@ export namespace SE::Utilities {
 			eFatal,
 		};
 
-	private:
 		inline static bool m_Init = false;
 		inline static std::ofstream m_OutStream = {};
 
@@ -45,7 +44,9 @@ export namespace SE::Utilities {
 		}
 
 		/// Returns whether the logger is initialized
-		static bool isInitialized() { return m_Init; }
+		static auto isInitialized() -> bool {
+			return m_Init;
+		}
 
 		/// For general logging purposes.
 		/// @param logMessage message to log
@@ -108,19 +109,22 @@ export namespace SE::Utilities {
 		}
 
 	private:
-		static std::string i_getLogTypeString(LogType logType) {
-			std::string result;
-			if (logType == LogType::eInfo)
-				result = "[INFO]";
-			else if (logType == LogType::ePerformance)
-				result = "[PERF]";
-			else if (logType == LogType::eWarning)
-				result = "[WARN]";
-			else if (logType == LogType::eError)
-				result = "[ERROR]";
-			else if (logType == LogType::eFatal)
-				result = "[FATAL]";
-			return result;
+		static auto i_getLogTypeString(LogType logType) -> std::string {
+			switch (logType) {
+				case LogType::eInfo:
+					return "[INFO]";
+				case LogType::ePerformance:
+					return "[PERF]";
+				case LogType::eWarning:
+					return "[WARN]";
+				case LogType::eError:
+					return "[ERROR]";
+				case LogType::eFatal:
+					return "[FATAL]";
+				case LogType::eNone:
+				default:
+					return "";
+			}
 		}
 
 		static void i_log(std::string_view message, LogType logType,
@@ -139,20 +143,29 @@ export namespace SE::Utilities {
 				tabFill = true;
 
 			auto fmtd = std::vformat(message, fmtargs);
-			if (tabFill) fmtd.erase(0, 1);
+			if (tabFill)
+				fmtd.erase(0, 1);
 
 			const auto logTypeString = i_getLogTypeString(logType);
 
-			if (logType == LogType::eFatal)
-				std::cout << "\033[30;41m" << logTypeString << "\033[0m";
-			else if (logType == LogType::eError)
-				std::cout << "\033[31m" << logTypeString << "\033[0m";
-			else if (logType == LogType::eWarning)
-				std::cout << "\033[33m" << logTypeString << "\033[0m";
-			else if (logType == LogType::ePerformance)
-				std::cout << "\033[33m" << logTypeString << "\033[0m";
-			else if (logType == LogType::eInfo)
-				std::cout << "\033[34m" << logTypeString << "\033[0m";
+			switch (logType) {
+				case LogType::eInfo:
+					std::cout << "\033[34m" << logTypeString << "\033[0m";
+					break;
+				case LogType::ePerformance:
+				case LogType::eWarning:
+					std::cout << "\033[33m" << logTypeString << "\033[0m";
+					break;
+				case LogType::eError:
+					std::cout << "\033[31m" << logTypeString << "\033[0m";
+					break;
+				case LogType::eFatal:
+					std::cout << "\033[30;41m" << logTypeString << "\033[0m";
+					break;
+				case LogType::eNone:
+				default:
+					break;
+			}
 
 			if (tabFill) {
 				if (logType == LogType::eNone) {
@@ -178,4 +191,4 @@ export namespace SE::Utilities {
 			}
 		}
 	};
-}
+} // namespace SE
