@@ -21,15 +21,15 @@ namespace SE {
 	public:
 		/// Thread job execution type
 		enum class ExecutionType {
-			eSequentialFinish, //< Jobs are executed and removed sequentially
-			eSequentialRepeat  //< Jobs are executed sequentially and repeated until stopped
+			eSequentialFinish, ///< Jobs are executed and removed sequentially
+			eSequentialRepeat  ///< Jobs are executed sequentially and repeated until stopped
 		};
 
 	private:
 		/// Thread state enums
 		enum class ThreadState {
-			eWaiting, //< Thread is waiting for jobs
-			eRunning  //< Thread is running jobs
+			eWaiting, ///< Thread is waiting for jobs
+			eRunning  ///< Thread is running jobs
 		};
 
 		using ThreadJob = std::function<void(std::atomic_bool &)>;
