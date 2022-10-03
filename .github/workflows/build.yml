@@ -19,6 +19,8 @@ jobs:
 
       - name: "Setup MSBuild"
         uses: microsoft/setup-msbuild@v1.1
+        with:
+          vs-prerelease: true
 
       - name: "Setup xmake"
         uses: xmake-io/github-action-setup-xmake@v1.0.12
