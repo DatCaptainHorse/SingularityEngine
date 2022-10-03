@@ -22,14 +22,14 @@ jobs:
 
       - name: "Setup xmake"
         uses: xmake-io/github-action-setup-xmake@v1.0.12
-      with:
-        xmake-version: latest
+        with:
+          xmake-version: latest
 
-    - name: "Configure xmake"
-      run: "xmake f -m releasedbg -y"
-      
-    - name: "Build using xmake"
-      run: "xmake"
+      - name: "Configure xmake"
+        run: "xmake f -m releasedbg -y"
 
-    - name: "Run Tests"
-      run: "xmake run Tests"
+      - name: "Build using xmake"
+        run: "xmake"
+
+      - name: "Run Tests"
+        run: "xmake run Tests"
