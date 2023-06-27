@@ -30,3 +30,6 @@ jobs:
 
       - name: "Run CMake"
         uses: lukka/run-cmake@v10
+        with:
+          configurePreset: "Release"
+          testPreset: "test-release"
