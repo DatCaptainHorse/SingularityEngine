@@ -26,7 +26,12 @@ jobs:
           msbuild-architecture: x64
 
       - name: "Setup CMake"
-        uses: lukka/get-cmake@v3.26.4
+        uses: lukka/get-cmake@latest
+
+      - name: "Run vcpkg"
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: "vcpkg.json"
 
       - name: "Run CMake"
         uses: lukka/run-cmake@v10
