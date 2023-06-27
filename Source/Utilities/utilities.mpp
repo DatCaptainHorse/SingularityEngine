@@ -1,3 +1,0 @@
-export module SE:Utilities;
-
-export import Utilities.Logging;

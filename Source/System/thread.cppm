@@ -11,7 +11,7 @@ module;
 #include <stop_token>
 #include <thread>
 
-export module System.Thread;
+export module SE.System:Thread;
 
 namespace SE {
 
@@ -25,14 +25,15 @@ namespace SE {
 			eSequentialRepeat  ///< Jobs are executed sequentially and repeated until stopped
 		};
 
+		/// Thread job function base
+		using ThreadJob = std::function<void(std::atomic_bool &)>;
+
 	private:
 		/// Thread state enums
 		enum class ThreadState {
 			eWaiting, ///< Thread is waiting for jobs
 			eRunning  ///< Thread is running jobs
 		};
-
-		using ThreadJob = std::function<void(std::atomic_bool &)>;
 
 		std::jthread thread;
 		std::mutex runnerMutex;
@@ -106,28 +107,31 @@ namespace SE {
 	public:
 		/// Creates a thread without jobs
 		/// @param execType ExecutionType of thread
-		Thread(ExecutionType execType = ExecutionType::eSequentialFinish)
+		explicit Thread(ExecutionType execType = ExecutionType::eSequentialFinish)
 			: executionType(execType), threadState(ThreadState::eWaiting), stopper(false),
 			  startSemaphore(0), endSemaphore(0), workSemaphore(0) {
-			thread = std::jthread(std::bind_front(&Thread::runner, this));
+			thread = std::jthread([this](const std::stop_token &stopToken) {
+				runner(stopToken);
+			});
 		}
 
 		/// Destructor, stops current job before deconstruction
 		~Thread() {
-			thread.request_stop();
-			stop();
 			if (threadState == ThreadState::eWaiting)
 				workSemaphore.release();
+
+			thread.request_stop();
 		}
 
-		Thread(const Thread &other) = delete;
-		Thread(Thread &&other) = delete;
 		auto operator=(const Thread &other) -> Thread & = delete;
 		auto operator=(Thread &&other) -> Thread & = delete;
 
+		Thread(const Thread &other) = delete;
+		Thread(Thread &&other) = delete;
+
 		/// Queues new jobs to execute
 		/// @param functions job functions to queue, std::atomic_bool& required for early stopping
-		void queue(std::convertible_to<ThreadJob> auto... functions) {
+		auto queue(std::convertible_to<ThreadJob> auto... functions) -> void {
 			const std::scoped_lock lock(runnerMutex);
 			std::vector<ThreadJob> expanded = {functions...};
 			for (const auto &job : expanded)
@@ -135,7 +139,7 @@ namespace SE {
 		}
 
 		/// Starts executing jobs in queue if not already, blocks until thread has started
-		void start() {
+		auto start() -> void {
 			if (!jobs.empty() && threadState == ThreadState::eWaiting) {
 				workSemaphore.release();
 				startSemaphore.acquire();
@@ -143,7 +147,7 @@ namespace SE {
 		}
 
 		/// Request's to stop execution of current job
-		void stop() {
+		auto stop() -> void {
 			if (threadState == ThreadState::eRunning)
 				stopper = true;
 		}
@@ -151,34 +155,37 @@ namespace SE {
 		/// Blocks until all jobs have finished if thread execution type is eSequentialFinish.
 		/// If thread execution type is eSequentialRepeat, waits until single job has finished.
 		/// @param timeout time in milliseconds to wait for before timing out
-		/// @returns false on timeout, true otherwise
+		/// @returns false on timeout, true if thread has finished
 		auto wait(std::uint32_t timeout = 0) -> bool {
 			// Early return if thread is in waiting state
 			if (threadState == ThreadState::eWaiting)
 				return true;
 
+			auto should_continue_waiting = [this]() {
+				return (executionType == ExecutionType::eSequentialFinish &&
+						threadState == ThreadState::eRunning) ||
+					   (executionType == ExecutionType::eSequentialRepeat && stopper);
+			};
+
 			if (timeout == 0) {
-				do {
+				while (should_continue_waiting()) {
 					endSemaphore.acquire();
-				} while ((executionType == ExecutionType::eSequentialFinish &&
-						  threadState == ThreadState::eRunning) ||
-						 (executionType == ExecutionType::eSequentialRepeat && stopper));
+				}
 			} else {
-				bool result = false;
-				do {
-					result = endSemaphore.try_acquire_for(std::chrono::milliseconds(timeout));
-					if (!result)
+				while (true) {
+					if (!should_continue_waiting())
 						break;
-				} while ((executionType == ExecutionType::eSequentialFinish &&
-						  threadState == ThreadState::eRunning) ||
-						 (executionType == ExecutionType::eSequentialRepeat && stopper));
-				return result;
+					if (!endSemaphore.try_acquire_for(std::chrono::milliseconds(timeout))) {
+						return false;
+					}
+				}
 			}
+
 			return true;
 		}
 
 		/// Clear all jobs from queue, blocks until done incase thread is running
-		void clear() {
+		auto clear() -> void {
 			stop();
 			wait();
 			{

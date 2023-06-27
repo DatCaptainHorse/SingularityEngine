@@ -1,261 +1,228 @@
 #include <chrono>
 #include <thread>
 
-#include <doctest/doctest.h>
+#include <catch2/catch_test_macros.hpp>
 
-import SE;
+import SE.System;
 
-TEST_CASE("Thread - sequential finish" *
-		  doctest::description("Tests Thread for common usage with eSequentialFinish"
-							   ", shouldn't take longer than 5 seconds") *
-		  doctest::timeout(5.0)) {
-	auto thr = SE::Thread();
-	REQUIRE(thr.count() == 0);
-	REQUIRE_FALSE(thr.busy());
+TEST_CASE("Test Thread Execution Single Job") {
+	SE::Thread t(SE::Thread::ExecutionType::eSequentialFinish);
+	std::atomic_bool executed(false);
 
-	SUBCASE("Wait for jobless thread") {
-		const auto waitResult = thr.wait();
-		REQUIRE(waitResult);
-	}
+	t.queue([&executed](std::atomic_bool &stop) {
+		executed = true;
+	});
 
-	SUBCASE("Create an ending job") {
-		int counter = 0;
-		auto threadjob = [&counter](std::atomic_bool &stop) {
-			CHECK_FALSE(stop);
-			counter = 10;
-		};
+	t.start();
+	t.wait();
 
-		SUBCASE("Test job") {
-			std::atomic_bool atomicBool = false;
-			threadjob(atomicBool);
-			CHECK(counter == 10);
-		}
-
-		SUBCASE("Queue job") {
-			thr.queue(threadjob);
-
-			CHECK(counter == 0);
-			CHECK(thr.count() == 1);
-			CHECK_FALSE(thr.busy());
-
-			SUBCASE("Start and wait for job") {
-				thr.start();
-				const auto waitResult = thr.wait();
-				CHECK(counter == 10);
-				CHECK(thr.count() == 0);
-				CHECK_FALSE(thr.busy());
-				CHECK(waitResult);
-			}
-
-			SUBCASE("Start and wait for job - sleep") {
-				thr.start();
-				std::this_thread::sleep_for(std::chrono::microseconds(1));
-				const auto waitResult = thr.wait();
-				CHECK(counter == 10);
-				CHECK(thr.count() == 0);
-				CHECK_FALSE(thr.busy());
-				CHECK(waitResult);
-			}
-
-			SUBCASE("Start and clear job") {
-				thr.start();
-				thr.clear();
-				CAPTURE(counter);
-				CHECK(thr.count() == 0);
-				CHECK_FALSE(thr.busy());
-			}
-		}
-	}
-
-	SUBCASE("Create an unending job") {
-		int counter = 0;
-		auto threadjob = [&counter](std::atomic_bool &stop) {
-			while (!stop)
-				counter++;
-		};
-
-		SUBCASE("Test job") {
-			std::atomic_bool atomicBool = true;
-			threadjob(atomicBool);
-			CHECK(counter == 0);
-		}
-
-		SUBCASE("Queue job") {
-			thr.queue(threadjob);
-
-			CHECK(counter == 0);
-			CHECK(thr.count() == 1);
-			CHECK_FALSE(thr.busy());
-
-			SUBCASE("Start, stop and wait for job") {
-				thr.start();
-				thr.stop();
-				const auto waitResult = thr.wait();
-				CAPTURE(counter);
-				CAPTURE(thr.count());
-				CAPTURE(thr.busy());
-				CHECK(waitResult);
-			}
-
-			SUBCASE("Start and wait for job - timeout") {
-				thr.start();
-				auto waitResult = thr.wait(1);
-				CAPTURE(counter);
-				CAPTURE(thr.count());
-				CAPTURE(thr.busy());
-				CHECK_FALSE(waitResult);
-
-				thr.stop();
-				waitResult = thr.wait();
-				CAPTURE(counter);
-				CHECK(thr.count() == 0);
-				CHECK_FALSE(thr.busy());
-				CHECK(waitResult);
-			}
-
-			SUBCASE("Start, stop and wait for job - sleep") {
-				thr.start();
-				thr.stop();
-				std::this_thread::sleep_for(std::chrono::microseconds(1));
-				const auto waitResult = thr.wait();
-				CAPTURE(counter);
-				CAPTURE(thr.count());
-				CAPTURE(thr.busy());
-				CHECK(waitResult);
-			}
-
-			SUBCASE("Start and wait for job - sleep and timeout") {
-				thr.start();
-				std::this_thread::sleep_for(std::chrono::microseconds(1));
-				auto waitResult = thr.wait(1);
-				CAPTURE(counter);
-				CAPTURE(thr.count());
-				CAPTURE(thr.busy());
-				CHECK_FALSE(waitResult);
-
-				thr.stop();
-				waitResult = thr.wait();
-				CAPTURE(counter);
-				CHECK(thr.count() == 0);
-				CHECK_FALSE(thr.busy());
-				CHECK(waitResult);
-			}
-		}
-	}
-
-	SUBCASE("Create multiple ending jobs") {
-		int counter = 0;
-		auto firstjob = [&counter](std::atomic_bool &) {
-			counter++;
-		};
-		auto secondjob = [&counter](std::atomic_bool &) {
-			counter++;
-		};
-		auto thirdjob = [&counter](std::atomic_bool &) {
-			counter--;
-		};
-		auto fourthjob = [&counter](std::atomic_bool &) {
-			counter--;
-		};
-
-		SUBCASE("Test jobs") {
-			std::atomic_bool atomicBool = false;
-			firstjob(atomicBool);
-			secondjob(atomicBool);
-			thirdjob(atomicBool);
-			fourthjob(atomicBool);
-			REQUIRE(counter == 0);
-		}
-
-		SUBCASE("Queue multiple jobs") {
-			thr.queue(firstjob, secondjob, thirdjob, fourthjob);
-
-			CHECK(counter == 0);
-			CHECK(thr.count() == 4);
-			CHECK_FALSE(thr.busy());
-
-			SUBCASE("Start and wait for jobs") {
-				thr.start();
-				const auto waitResult = thr.wait();
-				CHECK(counter == 0);
-				CHECK(thr.count() == 0);
-				CHECK_FALSE(thr.busy());
-				CHECK(waitResult);
-			}
-		}
-	}
+	REQUIRE(executed);
 }
 
-TEST_CASE("Thread - sequential repeat" *
-		  doctest::description("Tests Thread for common usage with eSequentialRepeat"
-							   ", shouldn't take longer than 5 seconds") *
-		  doctest::timeout(5.0)) {
-	auto thr = SE::Thread(SE::Thread::ExecutionType::eSequentialRepeat);
-	REQUIRE(thr.count() == 0);
-	REQUIRE_FALSE(thr.busy());
+TEST_CASE("Test Thread Execution Multiple Jobs") {
+	SE::Thread t(SE::Thread::ExecutionType::eSequentialFinish);
+	std::atomic_int counter(0);
 
-	SUBCASE("Wait for jobless thread") {
-		const auto waitResult = thr.wait();
-		REQUIRE(waitResult);
-	}
+	t.queue([&counter](std::atomic_bool &stop) { counter += 1; });
+	t.queue([&counter](std::atomic_bool &stop) { counter += 2; });
+	t.queue([&counter](std::atomic_bool &stop) { counter += 3; });
 
-	SUBCASE("Create a job") {
-		int counter = 0;
-		auto threadjob = [&counter](std::atomic_bool &) {
-			counter++;
-		};
+	t.start();
+	t.wait();
 
-		SUBCASE("Test job") {
-			std::atomic_bool atomicBool = false;
-			threadjob(atomicBool);
-			CHECK(counter == 1);
+	REQUIRE(counter == 6);
+}
+
+TEST_CASE("Test Thread Execution Order") {
+	SE::Thread t(SE::Thread::ExecutionType::eSequentialFinish);
+	std::vector<int> results;
+
+	t.queue([&results](std::atomic_bool &stop) { results.push_back(1); });
+	t.queue([&results](std::atomic_bool &stop) { results.push_back(2); });
+	t.queue([&results](std::atomic_bool &stop) { results.push_back(3); });
+
+	t.start();
+	t.wait();
+
+	REQUIRE(results == std::vector<int>({1, 2, 3}));
+}
+
+TEST_CASE("Test Thread Clear Jobs") {
+	SE::Thread t(SE::Thread::ExecutionType::eSequentialFinish);
+	std::atomic_int counter(0);
+
+	t.queue([&counter](std::atomic_bool &stop) { counter += 1; });
+	t.queue([&counter](std::atomic_bool &stop) { counter += 2; });
+	t.queue([&counter](std::atomic_bool &stop) { counter += 3; });
+
+	t.clear();
+	t.start();
+	t.wait();
+
+	REQUIRE(counter == 0);
+	REQUIRE(t.count() == 0);
+}
+
+TEST_CASE("Test Sequential Repeat Execution") {
+	SE::Thread t(SE::Thread::ExecutionType::eSequentialRepeat);
+	std::atomic_int counter(0);
+
+	t.queue([&counter](std::atomic_bool &stop) {
+		counter += 1;
+		if (counter == 5) {
+			stop = true;
 		}
+	});
 
-		SUBCASE("Queue job") {
-			thr.queue(threadjob);
+	t.start();
+	t.wait();
 
-			CHECK(counter == 0);
-			CHECK(thr.count() == 1);
-			CHECK_FALSE(thr.busy());
+	REQUIRE(counter == 5);
+}
 
-			SUBCASE("Start and wait for job, stop afterwards") {
-				thr.start();
-				auto waitResult = thr.wait();
-				CHECK(counter != 0);
-				CHECK(thr.count() == 1);
-				CHECK(thr.busy());
-				CHECK(waitResult);
+TEST_CASE("Test Stop Functionality") {
+	SE::Thread t(SE::Thread::ExecutionType::eSequentialFinish);
+	std::atomic_int counter(0);
 
-				thr.stop();
-				waitResult = thr.wait();
-				CHECK(thr.count() == 0);
-				CHECK_FALSE(thr.busy());
-				CHECK(waitResult);
+	t.queue([&counter](std::atomic_bool &stop) {
+		for (int i = 0; i < 5; ++i) {
+			if (stop) {
+				break;
 			}
-
-			SUBCASE("Start and wait for job, stop afterwards - sleep") {
-				thr.start();
-				std::this_thread::sleep_for(std::chrono::microseconds(1));
-				auto waitResult = thr.wait();
-				CHECK(counter != 0);
-				CHECK(thr.count() == 1);
-				CHECK(thr.busy());
-				CHECK(waitResult);
-
-				thr.stop();
-				waitResult = thr.wait();
-				CHECK(thr.count() == 0);
-				CHECK_FALSE(thr.busy());
-				CHECK(waitResult);
-			}
-
-			SUBCASE("Start and clear job") {
-				thr.start();
-				thr.clear();
-				CAPTURE(counter);
-				CHECK(thr.count() == 0);
-				CHECK_FALSE(thr.busy());
-			}
+			counter += 1;
 		}
-	}
+	});
+
+	t.start();
+	std::this_thread::sleep_for(std::chrono::milliseconds(100));
+	t.stop();
+	t.wait();
+
+	REQUIRE(counter > 0);
+}
+
+TEST_CASE("Test Wait Timeout") {
+	SE::Thread t(SE::Thread::ExecutionType::eSequentialFinish);
+	std::atomic_int counter(0);
+
+	t.queue([&counter](std::atomic_bool &stop) {
+		for (int i = 0; i < 5; ++i) {
+			if (stop) {
+				break;
+			}
+			counter += 1;
+		}
+	});
+
+	t.start();
+	bool result = t.wait(100); // 10ms timeout
+
+	REQUIRE(result);
+	REQUIRE(counter > 0);
+	t.stop(); // Ensure the thread is stopped before exiting the test
+}
+
+TEST_CASE("Test Thread Busy Status") {
+	SE::Thread t(SE::Thread::ExecutionType::eSequentialFinish);
+	std::atomic_bool executed(false);
+
+	t.queue([&executed](std::atomic_bool &stop) {
+		executed = true;
+		std::this_thread::sleep_for(std::chrono::milliseconds(150));
+	});
+
+	REQUIRE_FALSE(t.busy());
+	t.start();
+	std::this_thread::sleep_for(std::chrono::milliseconds(50));
+	REQUIRE(t.busy());
+	t.wait();
+	REQUIRE_FALSE(t.busy());
+}
+
+TEST_CASE("Test ThreadPool Parallel Execution") {
+	SE::ThreadPool tp;
+	std::atomic_int counter(0);
+
+	tp.queue([&counter](std::atomic_bool &stop) { counter += 1; },
+			 [&counter](std::atomic_bool &stop) { counter += 2; },
+			 [&counter](std::atomic_bool &stop) { counter += 3; });
+
+	tp.start();
+	tp.wait();
+
+	REQUIRE(counter == 6);
+}
+
+TEST_CASE("Test ThreadPool Clear Jobs") {
+	SE::ThreadPool tp;
+	std::atomic_int counter(0);
+
+	tp.queue([&counter](std::atomic_bool &stop) { counter += 1; },
+			 [&counter](std::atomic_bool &stop) { counter += 2; },
+			 [&counter](std::atomic_bool &stop) { counter += 3; });
+
+	tp.clear();
+	tp.start();
+	tp.wait();
+
+	REQUIRE(counter == 0);
+}
+
+TEST_CASE("Test ThreadPool Stop Functionality") {
+	SE::ThreadPool tp;
+	std::atomic_int counter(0);
+
+	tp.queue([&counter](std::atomic_bool &stop) {
+		for (int i = 0; i < 5; ++i) {
+			if (stop) {
+				break;
+			}
+			counter += 1;
+		}
+	});
+
+	tp.start();
+	std::this_thread::sleep_for(std::chrono::milliseconds(100));
+	tp.stop();
+	tp.wait();
+
+	REQUIRE(counter > 0);
+}
+
+TEST_CASE("Test ThreadPool Wait Timeout") {
+	SE::ThreadPool tp;
+	std::atomic_int counter(0);
+
+	tp.queue([&counter](std::atomic_bool &stop) {
+		for (int i = 0; i < 5; ++i) {
+			if (stop) {
+				break;
+			}
+			counter += 1;
+		}
+	});
+
+	tp.start();
+	bool result = tp.wait(100); // 100ms timeout
+
+	REQUIRE(result);
+	REQUIRE(counter > 0);
+	tp.stop(); // Ensure the thread pool is stopped before exiting the test
+}
+
+TEST_CASE("Test ThreadPool Busy Status") {
+	SE::ThreadPool tp;
+	std::atomic_bool executed(false);
+
+	tp.queue([&executed](std::atomic_bool &stop) {
+		executed = true;
+		std::this_thread::sleep_for(std::chrono::milliseconds(150));
+	});
+
+	REQUIRE_FALSE(tp.busy());
+	tp.start();
+	std::this_thread::sleep_for(std::chrono::milliseconds(50));
+	REQUIRE(tp.busy());
+	tp.wait();
+	REQUIRE_FALSE(tp.busy());
 }

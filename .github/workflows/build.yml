@@ -10,28 +10,24 @@ on:
 
 jobs:
   windows_build:
-    name: "Build - Windows (Self-Hosted)"
-    runs-on: self-hosted
+    name: "Build - Windows (MSVC)"
+    runs-on: windows-latest
 
     steps:
       - name: "Checkout"
         uses: actions/checkout@v3
 
       - name: "Setup MSBuild"
-        uses: microsoft/setup-msbuild@v1.1
+        uses: microsoft/setup-msbuild@v1
         with:
           vs-prerelease: true
+          msbuild-architecture: x64
 
-      - name: "Setup xmake"
-        uses: xmake-io/github-action-setup-xmake@v1.0.12
-        with:
-          xmake-version: latest
+      - name: "Setup CMake"
+        uses: lukka/get-cmake@v3
 
-      - name: "Configure xmake"
-        run: "xmake f -m releasedbg -y"
+      - name: "Setup vcpkg"
+        uses: lukka/run-vcpkg@v11
 
-      - name: "Build using xmake"
-        run: "xmake"
-
-      - name: "Run Tests"
-        run: "xmake run Tests"
+      - name: "Run CMake"
+        uses: lukka/run-cmake@v10

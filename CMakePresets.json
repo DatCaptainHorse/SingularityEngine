@@ -1,0 +1,56 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 26,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": {
+          "type": "FILEPATH",
+          "value": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+        }
+      },
+      "environment": {
+        "VCPKG_ROOT": "./vcpkg"
+      }
+    },
+    {
+      "name": "Debug",
+      "inherits": "base",
+      "displayName": "Configure Singularity Engine - Debug",
+      "description": "Configure Singularity Engine in Debug mode",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "Release",
+      "inherits": "base",
+      "displayName": "Configure Singularity Engine - Release",
+      "description": "Configure Singularity Engine in Release mode",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "test-debug",
+      "configurePreset": "Debug",
+      "displayName": "Test Singularity Engine - Debug",
+      "description": "Run tests for Singularity Engine in Debug mode"
+    },
+    {
+      "name": "test-release",
+      "configurePreset": "Release",
+      "displayName": "Test Singularity Engine - Release",
+      "description": "Run tests for Singularity Engine in Release mode"
+    }
+  ]
+}

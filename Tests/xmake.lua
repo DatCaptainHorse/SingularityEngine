@@ -1,5 +1,0 @@
-target("Tests")
-	set_kind("binary")
-	add_deps("SingularityEngine")
-	add_files("*.cpp")
-	add_packages("doctest")

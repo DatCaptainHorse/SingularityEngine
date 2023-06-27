@@ -7,6 +7,7 @@ modernize-*,
 portability-*,
 performance-*,
 readability-*,
+-readability-identifier-length,
 misc-*,
 -readability-magic-numbers,
 -readability-braces-around-statements'

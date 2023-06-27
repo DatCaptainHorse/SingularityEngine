@@ -1,10 +1,10 @@
 #include <filesystem>
 
-#include <doctest/doctest.h>
+#include <catch2/catch_test_macros.hpp>
 
-import SE;
+import SE.Utilities;
 
-TEST_CASE("Logger" * doctest::description("Tests Logger for common usage")) {
+TEST_CASE("Logger initialize", "[Utilities]") {
 	REQUIRE_FALSE(SE::Logger::isInitialized());
 	SE::Logger::Init("loggertest.txt");
 	REQUIRE(SE::Logger::isInitialized());

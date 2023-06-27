@@ -6,7 +6,7 @@
 #include <sstream>
 #include <string>
 
-export module Utilities.Logging;
+export module SE.Utilities:Logging;
 
 namespace SE {
 
