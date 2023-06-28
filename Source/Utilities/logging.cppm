@@ -1,51 +1,66 @@
 ﻿module;
 
-#include <format>
 #include <fstream>
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <utility>
 
 export module SE.Utilities:Logging;
 
+import fmt;
+
 namespace SE {
 
-	/// RAII Logging class
-	/// Uses std::format for formatting of log messages
+	/// RAII logging class
 	export class Logger {
-	private:
-		enum class LogType {
-			eNone,
-			eInfo,
-			ePerformance,
-			eWarning,
-			eError,
-			eFatal,
+	public:
+		/// Log level enums.
+		enum class LogLevel {
+			None,		 //< For general logging purposes.
+			Info,		 //< For something that is particularly informative.
+			Performance, //< For logging something that might affect performance.
+			Warning,	 //< For things that shouldn't happen but execution can continue normally.
+			Error, //< For things that really shouldn't have happened and causes further issues.
+			Fatal, //< When something went wrong so badly that the program has to quit immediately.
+			Debug, //< For debugging purposes, only logs to console if log level is set to debug.
 		};
 
-		inline static bool m_Init = false;
-		inline static std::ofstream m_OutStream = {};
+		/// The logger configuration.
+		struct Config {
+			std::string outputFile;				///< The file to output log to.
+			LogLevel logLevel {LogLevel::Info}; ///< The log level to use for console.
+
+			/// Constructs the logger configuration with default values.
+			Config() : outputFile("log.txt") {}
+		};
+
+	private:
+		inline static bool initialized = false;
+		inline static std::ofstream outputFileStream;
+		inline static LogLevel logLevel;
 
 	public:
 		/// Initializes the logger
 		/// @param outputFile file to output log to
-		static void Init(const std::string &outputFile = "log.txt") {
-			m_OutStream = std::ofstream(outputFile);
-			m_Init = true;
+		static void Init(const Config &config = Config()) {
+			outputFileStream = std::ofstream(config.outputFile);
+			logLevel = config.logLevel;
+			initialized = true;
 		}
 
 		/// Cleans up the logger and closes file stream
 		static void Clean() {
-			if (!m_Init)
+			if (!initialized)
 				return;
 
-			m_OutStream.close();
-			m_Init = false;
+			outputFileStream.close();
+			initialized = false;
 		}
 
 		/// Returns whether the logger is initialized
 		static auto isInitialized() -> bool {
-			return m_Init;
+			return initialized;
 		}
 
 		/// For general logging purposes.
@@ -53,7 +68,7 @@ namespace SE {
 		/// @param args arguments to log
 		template<typename... Args>
 		static void Log(const std::string_view logMessage, const Args &...args) {
-			i_log(logMessage, LogType::eNone, std::make_format_args(args...));
+			iLog(logMessage, LogLevel::None, fmt::make_format_args(args...));
 		}
 
 		/// For something that is particularly informative.
@@ -61,7 +76,7 @@ namespace SE {
 		/// @param args arguments to log
 		template<typename... Args>
 		static void Info(const std::string_view logMessage, const Args &...args) {
-			i_log(logMessage, LogType::eInfo, std::make_format_args(args...));
+			iLog(logMessage, LogLevel::Info, fmt::make_format_args(args...));
 		}
 
 		/// For logging something that might affect performance.
@@ -69,7 +84,7 @@ namespace SE {
 		/// @param args arguments to log
 		template<typename... Args>
 		static void Performance(const std::string_view logMessage, const Args &...args) {
-			i_log(logMessage, LogType::ePerformance, std::make_format_args(args...));
+			iLog(logMessage, LogLevel::Performance, fmt::make_format_args(args...));
 		}
 
 		/// For things that shouldn't happen but execution can continue normally.
@@ -77,7 +92,7 @@ namespace SE {
 		/// @param args arguments to log
 		template<typename... Args>
 		static void Warning(const std::string_view logMessage, const Args &...args) {
-			i_log(logMessage, LogType::eWarning, std::make_format_args(args...));
+			iLog(logMessage, LogLevel::Warning, fmt::make_format_args(args...));
 		}
 
 		/// For things that really shouldn't have happened and causes further issues.
@@ -85,7 +100,7 @@ namespace SE {
 		/// @param args arguments to log
 		template<typename... Args>
 		static void Error(const std::string_view logMessage, const Args &...args) {
-			i_log(logMessage, LogType::eError, std::make_format_args(args...));
+			iLog(logMessage, LogLevel::Error, fmt::make_format_args(args...));
 		}
 
 		/// When something went wrong so badly that the program has to quit immediately.
@@ -93,101 +108,111 @@ namespace SE {
 		/// @param args arguments to log
 		template<typename... Args>
 		static void Fatal(const std::string_view logMessage, const Args &...args) {
-			i_log(logMessage, LogType::eFatal, std::make_format_args(args...));
+			iLog(logMessage, LogLevel::Fatal, fmt::make_format_args(args...));
+		}
+
+		/// For debugging purposes, only logs to console if log level is set to debug.
+		/// @param logMessage message to log
+		/// @param args arguments to log
+		template<typename... Args>
+		static void Debug(const std::string_view logMessage, const Args &...args) {
+			iLog(logMessage, LogLevel::Debug, fmt::make_format_args(args...));
 		}
 
 		/// Logs a newline
 		/// @param count amount of newlines to add
 		static void EndLine(const uint32_t count = 1) {
-			if (!m_Init)
+			if (!initialized)
 				return;
 
 			for (uint32_t i = 0; i < count; ++i) {
-				std::cout << std::endl;
-				m_OutStream << std::endl;
+				std::cout << "\n";
+				outputFileStream << "\n";
 			}
 		}
 
 	private:
-		static auto i_getLogTypeString(LogType logType) -> std::string {
-			switch (logType) {
-				case LogType::eInfo:
+		static auto iGetLogLevelString(LogLevel level) -> std::string {
+			switch (level) {
+				case LogLevel::Info:
 					return "[INFO]";
-				case LogType::ePerformance:
+				case LogLevel::Performance:
 					return "[PERF]";
-				case LogType::eWarning:
+				case LogLevel::Warning:
 					return "[WARN]";
-				case LogType::eError:
+				case LogLevel::Error:
 					return "[ERROR]";
-				case LogType::eFatal:
+				case LogLevel::Fatal:
 					return "[FATAL]";
-				case LogType::eNone:
+				case LogLevel::Debug:
+					return "[DEBUG]";
+				case LogLevel::None:
 				default:
 					return "";
 			}
 		}
 
-		static void i_log(std::string_view message, LogType logType,
-						  std::basic_format_args<std::format_context> fmtargs) {
-			if (!m_Init)
+		static void iLog(std::string_view message, LogLevel level,
+						 fmt::basic_format_args<fmt::format_context> fmtargs) {
+			// Early return if logger not initialized
+			if (!initialized)
 				return;
 
-			// Skip newline if line carriage exists
-			bool skipNewline = false;
-			if (!message.empty() && message.find('\r') != std::string::npos)
-				skipNewline = true;
+			// Replace tabs with |||| and skip newline if line carriage exists
+			const auto tabFill = (!message.empty() && message.front() == '\t');
+			const auto skipNewline = (!message.empty() && message.find('\r') != std::string::npos);
 
-			// Replace tabs with |||| instead
-			bool tabFill = false;
-			if (!message.empty() && message.front() == '\t')
-				tabFill = true;
-
-			auto fmtd = std::vformat(message, fmtargs);
+			std::string fmtd = fmt::vformat(message, fmtargs);
 			if (tabFill)
-				fmtd.erase(0, 1);
+				fmtd.erase(0, 1); // remove the first char if it was '\t'
 
-			const auto logTypeString = i_getLogTypeString(logType);
+			// Get log level string
+			const auto logLevelString = iGetLogLevelString(level);
 
-			switch (logType) {
-				case LogType::eInfo:
-					std::cout << "\033[34m" << logTypeString << "\033[0m";
+			// Get color code for console
+			std::string colorCode;
+			switch (level) {
+				case LogLevel::Info:
+					colorCode = "\033[34m";
 					break;
-				case LogType::ePerformance:
-				case LogType::eWarning:
-					std::cout << "\033[33m" << logTypeString << "\033[0m";
+				case LogLevel::Performance:
+				case LogLevel::Warning:
+					colorCode = "\033[33m";
 					break;
-				case LogType::eError:
-					std::cout << "\033[31m" << logTypeString << "\033[0m";
+				case LogLevel::Error:
+					colorCode = "\033[31m";
 					break;
-				case LogType::eFatal:
-					std::cout << "\033[30;41m" << logTypeString << "\033[0m";
+				case LogLevel::Fatal:
+					colorCode = "\033[30;41m";
 					break;
-				case LogType::eNone:
+				case LogLevel::Debug:
+					colorCode = "\033[35m";
+					break;
 				default:
 					break;
 			}
 
-			if (tabFill) {
-				if (logType == LogType::eNone) {
-					m_OutStream << logTypeString << "|||| " << fmtd;
-					std::cout << "|||| " << fmtd;
-				} else {
-					m_OutStream << logTypeString << " |||| " << fmtd;
-					std::cout << " |||| " << fmtd;
-				}
-			} else {
-				if (logType == LogType::eNone) {
-					m_OutStream << logTypeString << fmtd;
-					std::cout << fmtd;
-				} else {
-					m_OutStream << logTypeString << " " << fmtd;
-					std::cout << " " << fmtd;
-				}
+			// Construct log stringstream
+			std::stringstream ss;
+			ss << (tabFill ? " |||| " : " ") << fmtd;
+
+			// If given level is less than logLevel, don't log to console
+			if (level <= logLevel) {
+				if (!colorCode.empty())
+					std::cout << colorCode << logLevelString << "\033[0m";
+				else
+					std::cout << logLevelString;
+
+				std::cout << ss.str();
+				if (!skipNewline)
+					std::cout << "\n";
 			}
 
-			if (!skipNewline) {
-				m_OutStream << std::endl;
-				std::cout << std::endl;
+			// For file, log everything up to Fatal
+			if (level <= LogLevel::Fatal) {
+				outputFileStream << logLevelString << ss.str();
+				if (!skipNewline)
+					outputFileStream << "\n";
 			}
 		}
 	};

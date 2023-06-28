@@ -1,0 +1,33 @@
+# Runtime loaded libraries #
+# SSE2
+add_library(SE_SIMD_SSE2 SHARED)
+add_library(SE::SIMD::SSE2 ALIAS SE_SIMD_SSE2)
+target_sources(SE_SIMD_SSE2 PRIVATE FILE_SET CXX_MODULES TYPE CXX_MODULES FILES
+  SSE2.cppm
+)
+target_compile_options(SE_SIMD_SSE2 PRIVATE
+  $<$<CXX_COMPILER_ID:GNU>:-msse2>
+  $<$<CXX_COMPILER_ID:Clang>:-msse2>
+)
+set_target_properties(SE_SIMD_SSE2 PROPERTIES
+  OUTPUT_NAME "sesimdsse2"
+  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+)
+
+# SSE4.2
+add_library(SE_SIMD_SSE42 SHARED)
+add_library(SE::SIMD::SSE42 ALIAS SE_SIMD_SSE42)
+target_sources(SE_SIMD_SSE42 PRIVATE FILE_SET CXX_MODULES TYPE CXX_MODULES FILES
+  SSE42.cppm
+)
+target_compile_options(SE_SIMD_SSE42 PRIVATE
+  $<$<CXX_COMPILER_ID:MSVC>:/arch:AVX> # There's no arch option for SSE, assume AVX means support for SSE4.2
+  $<$<CXX_COMPILER_ID:GNU>:-msse4.2>
+  $<$<CXX_COMPILER_ID:Clang>:-msse4.2>
+)
+set_target_properties(SE_SIMD_SSE42 PROPERTIES
+  OUTPUT_NAME "sesimdsse42"
+  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+)

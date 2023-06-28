@@ -14,4 +14,16 @@
 .vscode/
 
 # Build directory
-build/
+[Bb]uild/
+[Bb]uild-*/
+
+# clangd
+.cache/
+*.pch
+
+# direnv
+.direnv/
+
+# Nix
+result
+result-*

@@ -3,13 +3,19 @@ bugprone-*,
 cppcoreguidelines-*
 -cppcoreguidelines-avoid-magic-numbers,
 -cppcoreguidelines-prefer-member-initializer,
+-cppcoreguidelines-avoid-non-const-global-variables,
+-cppcoreguidelines-pro-type-union-access,
+-cppcoreguidelines-non-private-member-variables-in-classes,
+-cppcoreguidelines-use-default-member-init,
 modernize-*,
 portability-*,
 performance-*,
 readability-*,
 -readability-identifier-length,
-misc-*,
 -readability-magic-numbers,
--readability-braces-around-statements'
+-readability-braces-around-statements,
+-readability-redundant-access-specifiers,
+misc-*,
+-misc-non-private-member-variables-in-classes'
 
 WarningsAsErrors: '*'

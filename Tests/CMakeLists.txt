@@ -4,6 +4,7 @@ add_executable(Tests)
 
 target_sources(Tests PRIVATE
   test.cpp
+  maths.cpp
   system.cpp
   utilities.cpp
 )
