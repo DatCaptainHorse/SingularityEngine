@@ -1,126 +1,124 @@
 module;
 
-#include <atomic>
-#include <chrono>
-#include <concepts>
-#include <condition_variable>
-#include <functional>
-#include <mutex>
-#include <queue>
-#include <semaphore>
-#include <stop_token>
+#include <span>
+#include <deque>
 #include <thread>
+#include <chrono>
+#include <atomic>
+#include <cstdint>
+#include <semaphore>
+#include <functional>
 
 export module SE.System:Thread;
 
 namespace SE {
 
 	/// Thread class
-	/// Wraps std::jthread for added functionality
+	/// Wraps std::thread for added functionality
 	export class Thread {
 	public:
-		/// Thread job execution type
-		enum class ExecutionType {
-			eSequentialFinish, ///< Jobs are executed and removed sequentially
-			eSequentialRepeat  ///< Jobs are executed sequentially and repeated until stopped
+		/// Thread job result
+		/// Allows a job to tell the thread how it should proceed
+		enum class Result : std::uint8_t {
+			eNone,	   ///< Empty value, should not be used as a return value
+			eFinished, ///< Job has finished successfully and can be removed
+			eContinue, ///< Job has ran successfully and should be repeated
+			eFailed,   ///< Job has finished with failure and should be removed
+			eFatal	   ///< Job has encountered a fatal error and thread should stop
 		};
 
-		/// Thread job function base
-		using ThreadJob = std::function<void(std::atomic_bool &)>;
+		/// Thread job function
+		using Job = std::function<Result()>;
 
 	private:
 		/// Thread state enums
-		enum class ThreadState {
+		enum class ThreadState : std::uint8_t {
 			eWaiting, ///< Thread is waiting for jobs
-			eRunning  ///< Thread is running jobs
+			eRunning, ///< Thread is running jobs
+			eStopped  ///< Thread has stopped and can't be restarted, should be joined
 		};
 
-		std::jthread thread;
-		std::mutex runnerMutex;
-		std::atomic_bool stopper;
-		ExecutionType executionType;
-		std::atomic<ThreadState> threadState;
-		std::binary_semaphore startSemaphore, endSemaphore, workSemaphore;
-		std::queue<ThreadJob> jobs;
+		std::thread m_thread;
+		std::atomic_bool m_fullStopper, m_jobStopper;
+		ThreadState m_threadState = ThreadState::eWaiting;
+		std::binary_semaphore m_workSemaphore, m_beginSemaphore, m_endSemaphore;
+		std::deque<Job> m_jobs;
+		Result m_lastResult = Result::eNone;
 
 		/// Job execution thread
-		void runner(const std::stop_token &token) {
-			while (!token.stop_requested()) {
-				ThreadJob job;
+		void runner() {
+			while (!m_fullStopper) {
+				// If no jobs are available, wait for signal
+				if (m_threadState == ThreadState::eWaiting) m_workSemaphore.acquire();
 
-				// Wait for more work or stop request
-				if (threadState == ThreadState::eWaiting && !token.stop_requested())
-					workSemaphore.acquire();
+				// If full stopper is set, break out of loop early
+				if (m_fullStopper) break;
 
-				// Early break on stop request
-				if (token.stop_requested()) {
-					threadState = ThreadState::eWaiting;
-					endSemaphore.release();
+				// If no jobs are available, continue wait
+				if (m_jobs.empty()) continue;
+
+				// If m_jobStopper is set, empty out jobs and continue
+				if (m_jobStopper) {
+					m_jobs.clear();
+					m_jobStopper = false;
+					m_endSemaphore.release();
+					m_threadState = ThreadState::eWaiting;
+					continue;
+				}
+
+				// Get job from front of queue
+				const auto &job = std::move(m_jobs.front());
+				m_jobs.pop_front();
+
+				// Set state to running before executing job
+				m_threadState = ThreadState::eRunning;
+
+				// Let starter thread know that job has begun
+				m_beginSemaphore.release();
+
+				// Execute job
+				m_lastResult = job(); // Call job function without passing any parameters
+
+				// Process result from job function
+				switch (m_lastResult) {
+				case Result::eFinished:
+					break;
+				case Result::eContinue:
+					m_jobs.emplace_back(job); // Queue job again if needed
+					break;
+				case Result::eFailed:
+					break;
+				case Result::eFatal:
+					m_fullStopper = true; // Stop thread if job encounters fatal error
+					break;
+				default:
 					break;
 				}
 
-				{
-					const std::scoped_lock lock(runnerMutex);
-
-					// Assign job from front of queue
-					job = std::move(jobs.front());
-
-					// We are running
-					threadState = ThreadState::eRunning;
-				}
-
-				// Signal starter
-				startSemaphore.release();
-
-				// Execute job
-				job(stopper);
-
-				{
-					const std::scoped_lock lock(runnerMutex);
-
-					// Update job queue
-					if (executionType == ExecutionType::eSequentialFinish) {
-						if (!jobs.empty())
-							jobs.pop();
-
-						stopper = false;
-					} else if (executionType == ExecutionType::eSequentialRepeat) {
-						if (!jobs.empty())
-							jobs.pop();
-
-						if (!stopper)
-							jobs.push(job);
-						else if (jobs.empty())
-							stopper = false;
-					}
-
-					// If there are no jobs left, we are waiting
-					if (jobs.empty())
-						threadState = ThreadState::eWaiting;
-
-					// Signal waiter
-					endSemaphore.release();
+				// Notify waiting threads that jobs have finished
+				if (m_jobs.empty()) {
+					m_threadState = ThreadState::eWaiting;
+					m_endSemaphore.release();
 				}
 			}
+			m_threadState = ThreadState::eStopped;
+			m_beginSemaphore.release();
+			m_endSemaphore.release();
 		}
 
 	public:
 		/// Creates a thread without jobs
-		/// @param execType ExecutionType of thread
-		explicit Thread(ExecutionType execType = ExecutionType::eSequentialFinish)
-			: executionType(execType), threadState(ThreadState::eWaiting), stopper(false),
-			  startSemaphore(0), endSemaphore(0), workSemaphore(0) {
-			thread = std::jthread([this](const std::stop_token &stopToken) {
-				runner(stopToken);
-			});
+		explicit Thread()
+			: m_fullStopper(false), m_jobStopper(false), m_workSemaphore(0), m_beginSemaphore(0),
+			  m_endSemaphore(0) {
+			m_thread = std::thread([this] { runner(); });
 		}
 
-		/// Destructor, stops current job before deconstruction
+		/// Destructor, stops current job before joining thread
 		~Thread() {
-			if (threadState == ThreadState::eWaiting)
-				workSemaphore.release();
-
-			thread.request_stop();
+			m_fullStopper = true;
+			m_workSemaphore.release();
+			if (m_thread.joinable()) m_thread.join();
 		}
 
 		auto operator=(const Thread &other) -> Thread & = delete;
@@ -129,94 +127,63 @@ namespace SE {
 		Thread(const Thread &other) = delete;
 		Thread(Thread &&other) = delete;
 
-		/// Queues new jobs to execute
-		/// @param functions job functions to queue, std::atomic_bool& required for early stopping
-		auto queue(std::convertible_to<ThreadJob> auto... functions) -> void {
-			const std::scoped_lock lock(runnerMutex);
-			std::vector<ThreadJob> expanded = {functions...};
-			for (const auto &job : expanded)
-				jobs.push(job);
+		/// Adds multiple jobs to be executed by the thread
+		/// @param jobs span of jobs to be added to the queue
+		auto queue(const std::span<Job> jobs) -> void {
+			for (const auto &job : jobs) m_jobs.emplace_back(job);
 		}
 
-		/// Starts executing jobs in queue if not already, blocks until thread has started
+		/// Adds a job to be executed by the thread
+		/// @param job job to be added to the queue
+		auto queue(const Job &job) -> void { m_jobs.emplace_back(job); }
+
+		/// Signal thread to start executing jobs
+		/// Blocks until thread has started working
 		auto start() -> void {
-			if (!jobs.empty() && threadState == ThreadState::eWaiting) {
-				workSemaphore.release();
-				startSemaphore.acquire();
+			if (!m_jobs.empty()) {
+				m_workSemaphore.release();	// Signal thread to start working
+				m_beginSemaphore.acquire(); // Wait for thread to start working
 			}
 		}
 
-		/// Request's to stop execution of current job
-		auto stop() -> void {
-			if (threadState == ThreadState::eRunning)
-				stopper = true;
-		}
+		/// Requests thread to stop executing existing jobs
+		auto stop() -> void { m_jobStopper = true; }
 
-		/// Blocks until all jobs have finished if thread execution type is eSequentialFinish.
-		/// If thread execution type is eSequentialRepeat, waits until single job has finished.
-		/// @param timeout time in milliseconds to wait for before timing out
-		/// @returns false on timeout, true if thread has finished
-		auto wait(std::uint32_t timeout = 0) -> bool {
-			// Early return if thread is in waiting state
-			if (threadState == ThreadState::eWaiting)
-				return true;
-
-			auto should_continue_waiting = [this]() {
-				return (executionType == ExecutionType::eSequentialFinish &&
-						threadState == ThreadState::eRunning) ||
-					   (executionType == ExecutionType::eSequentialRepeat && stopper);
-			};
-
-			if (timeout == 0) {
-				while (should_continue_waiting()) {
-					endSemaphore.acquire();
-				}
-			} else {
-				while (true) {
-					if (!should_continue_waiting())
-						break;
-					if (!endSemaphore.try_acquire_for(std::chrono::milliseconds(timeout))) {
-						return false;
-					}
-				}
+		/// Blocks until thread has finished executing jobs and is waiting
+		/// @param timeout milliseconds to wait for before timing out
+		/// @returns Result of the waited job
+		auto wait(const std::chrono::milliseconds timeout = std::chrono::milliseconds(0))
+			-> Result {
+			// Early return if thread is not running
+			if (m_threadState != ThreadState::eRunning) return m_lastResult;
+			if (timeout.count() == 0)
+				m_endSemaphore.acquire(); // Wait for thread to finish working
+			else {
+				if (!m_endSemaphore.try_acquire_for(timeout)) return Result::eNone;
 			}
-
-			return true;
+			return m_lastResult; // Return lastResult after waiting completes
 		}
 
-		/// Clear all jobs from queue, blocks until done incase thread is running
+		/// Clears all jobs of the thread, first stopping and blocking until all jobs are cleared
 		auto clear() -> void {
 			stop();
-			wait();
-			{
-				const std::scoped_lock lock(runnerMutex);
-				jobs = {};
-			}
+			m_jobs.clear();
 		}
 
 		/// Returns amount of jobs left in queue
 		/// @returns count of jobs in queue
-		auto count() -> std::size_t {
-			const std::scoped_lock lock(runnerMutex);
-			return jobs.size();
-		}
+		[[nodiscard]] auto count() const -> std::size_t { return m_jobs.size(); }
 
 		/// Returns if thread is running jobs
 		/// @returns true when running jobs, false otherwise
-		auto busy() -> bool {
-			return threadState == ThreadState::eRunning;
-		}
+		[[nodiscard]] auto busy() const -> bool { return m_threadState == ThreadState::eRunning; }
 
 		/// Returns thread's ID
 		/// @returns ID of the thread
-		auto id() -> std::jthread::id {
-			return thread.get_id();
-		}
+		[[nodiscard]] auto id() const -> std::thread::id { return m_thread.get_id(); }
 
 		/// Returns native handle
 		/// @returns native handle to the thread
-		auto native() -> std::jthread::native_handle_type {
-			return thread.native_handle();
-		}
+		auto native() -> std::thread::native_handle_type { return m_thread.native_handle(); }
 	};
 } // namespace SE

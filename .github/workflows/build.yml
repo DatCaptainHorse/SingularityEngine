@@ -8,6 +8,9 @@ on:
     paths-ignore: [ "**.md" ]
     branches: [ "master", "release/**" ]
 
+env:
+  BUILD_TYPE: Release
+
 jobs:
   windows_build:
     name: "Build - Windows (MSVC)"
@@ -16,23 +19,15 @@ jobs:
     steps:
       - name: "Checkout"
         uses: actions/checkout@v3
-        with:
-          submodules: recursive
-          fetch-depth: 0
 
       - name: "Setup MSBuild"
-        uses: microsoft/setup-msbuild@v1
+        uses: microsoft/setup-msbuild@v2
         with:
           vs-prerelease: true
           msbuild-architecture: x64
 
       - name: "Setup CMake"
         uses: lukka/get-cmake@latest
-
-      - name: "Run vcpkg"
-        uses: lukka/run-vcpkg@v11
-        with:
-          vcpkgJsonGlob: "vcpkg.json"
 
       - name: "Run CMake"
         uses: lukka/run-cmake@v10
